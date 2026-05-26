@@ -1,0 +1,13 @@
+{
+  "appId": "com.busos.app",
+  "appName": "BUS OS",
+  "webDir": "build",
+  "server": {
+    "allowNavigation": [
+      "api.anthropic.com"
+    ]
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}
