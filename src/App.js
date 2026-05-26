@@ -408,7 +408,7 @@ If the user asks for both (e.g. "turn off lights AND add a water tank panel"), d
 
     try {
       const history = messages.slice(-10).map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.text }));
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("http://localhost:3001", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": "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", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({
