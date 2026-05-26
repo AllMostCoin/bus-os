@@ -1,4 +1,4 @@
-name: Build BUS·OS APK
+name: Build BUS-OS APK
 
 on:
   push:
