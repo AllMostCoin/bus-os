@@ -518,17 +518,7 @@ If the user asks for both (e.g. "turn off lights AND add a water tank panel"), d
       if (_prov === "gemini") rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response.";
       else if (_prov === "anthropic") rawText = data.content?.[0]?.text || "No response.";
       else rawText = data.choices?.[0]?.message?.content || "No response.";
-      const _IGNORE = {x:"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", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 8000,
-          system: buildSystemPrompt(),
-          messages: [...history, { role: "user", content: userMsg }]
-        })
-      });
-      const data = await res.json();
-      const rawText = data.content?.[0]?.text || "No response.";
-
+      
       // Extract control JSON
       const controlMatch = rawText.match(/```json\s*([\s\S]*?)```/);
       // Extract update metadata
