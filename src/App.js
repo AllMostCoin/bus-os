@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── Color tokens ─────────────────────────────────────────────────────────────
+const savedAccent = typeof localStorage !== "undefined" ? localStorage.getItem("busOS_accent") || "#ffffff" : "#ffffff";
 const C = {
   bg: "#000000", surface: "#0a0a0a", card: "#111111", border: "#1f1f1f",
-  accent: "#ffffff", accentDim: "#aaaaaa", green: "#4ade80", orange: "#fb923c",
+  accent: savedAccent, accentDim: "#aaaaaa", green: "#4ade80", orange: "#fb923c",
   red: "#f87171", yellow: "#facc15", purple: "#c084fc", text: "#f5f5f5",
   muted: "#525252", panel: "rgba(255,255,255,0.04)",
 };
@@ -769,7 +770,7 @@ export default function BusAIControl() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Helvetica Neue', 'Arial', sans-serif", maxWidth: 480, margin: "0 auto", padding: "12px 14px 80px" }}>
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Helvetica Neue', 'Arial', sans-serif", maxWidth: "100%", margin: "0 auto", padding: "12px 14px 80px" }}>
       <style>{`
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 4px; }
@@ -793,7 +794,7 @@ export default function BusAIControl() {
       {activeTab === "dev" && <DevPanel appSource={appSource} versions={versions} onApplyUpdate={applyUpdate} onRollback={rollback} />}
 
       {/* Bottom nav */}
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", padding: "6px 0 8px" }}>
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: "100%", background: C.surface, borderTop: `1px solid ${C.border}`, display: "flex", padding: "6px 0 8px" }}>
         {tabs.map(t => {
           const active = activeTab === t.id;
           return (
