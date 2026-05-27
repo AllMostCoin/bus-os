@@ -3,8 +3,13 @@
   "appName": "BUS OS",
   "webDir": "build",
   "server": {
+    "url": "https://allmostcoin.github.io/bus-os",
+    "cleartext": true,
     "allowNavigation": [
-      "api.anthropic.com"
+      "api.anthropic.com",
+      "api.groq.com",
+      "generativelanguage.googleapis.com",
+      "allmostcoin.github.io"
     ]
   },
   "android": {
