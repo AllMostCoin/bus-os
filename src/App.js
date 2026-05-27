@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ─── Color tokens ─────────────────────────────────────────────────────────────
-const savedAccent = typeof localStorage !== "undefined" ? localStorage.getItem("busOS_accent") || "#ffffff" : "#ffffff";
 const C = {
   bg: "#000000", surface: "#0a0a0a", card: "#111111", border: "#1f1f1f",
-  accent: savedAccent, accentDim: "#aaaaaa", green: "#4ade80", orange: "#fb923c",
+  accent: (function(){ try { return localStorage.getItem("busOS_accent") || "#ffffff"; } catch(e){ return "#ffffff"; } })(), accentDim: "#aaaaaa", green: "#4ade80", orange: "#fb923c",
   red: "#f87171", yellow: "#facc15", purple: "#c084fc", text: "#f5f5f5",
   muted: "#525252", panel: "rgba(255,255,255,0.04)",
 };
@@ -299,7 +298,7 @@ function SettingsPanel({ config, onSave }) {
         )}
         {testResult && <div style={{ padding: "8px 12px", borderRadius: 10, background: testResult.ok ? `${C.green}15` : `${C.red}15`, border: `1px solid ${testResult.ok ? C.green : C.red}`, color: testResult.ok ? C.green : C.red, fontSize: 12 }}>{testResult.msg}</div>}
         <div style={{ display: "flex", gap: 8 }}>
-          <Btn small color={C.muted} onClick={testConn}>{testing ? "Testing..." : "Test"}</Btn>
+          <div style={{marginBottom:8}}><div style={{color:C.muted,fontSize:11,marginBottom:6}}>ACCENT COLOR</div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{["#ffffff","#00d4ff","#4ade80","#fb923c","#f87171","#facc15","#c084fc","#f472b6"].map(clr=>(<div key={clr} onClick={()=>{localStorage.setItem("busOS_accent",clr);window.location.reload();}} style={{width:28,height:28,borderRadius:"50%",background:clr,cursor:"pointer",border:"2px solid "+C.border}} />))}</div></div><Btn small color={C.muted} onClick={testConn}>{testing ? "Testing..." : "Test"}</Btn>
           <Btn small color={C.green} onClick={() => { onSave({ provider, apiKey, customUrl, customModel }); setTestResult({ ok: true, msg: "Saved!" }); }}><Icon.check />Save</Btn>
         </div>
       </div>
