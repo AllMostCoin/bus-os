@@ -34,6 +34,7 @@ const Icon = {
   undo: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>,
   eye: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
   git: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>,
+  history: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>,
   settings: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
   download: () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
 };
@@ -306,6 +307,160 @@ function SettingsPanel({ config, onSave }) {
   );
 }
 
+
+// ─── Hot Reload Engine ────────────────────────────────────────────────────────
+// The app checks GitHub for a new bundle every 5 min and reloads without reinstall
+// Storage helpers accessible globally
+const loadHistory = () => { try { return JSON.parse(localStorage.getItem("busOS_history") || "[]"); } catch { return []; } };
+const saveHistory = (h) => { try { localStorage.setItem("busOS_history", JSON.stringify(h.slice(-500))); } catch {} };
+const loadProjects = () => { try { return JSON.parse(localStorage.getItem("busOS_projects") || "[]"); } catch { return []; } };
+const saveProjects = (p) => { try { localStorage.setItem("busOS_projects", JSON.stringify(p)); } catch {} };
+
+const GITHUB_BUNDLE_URL = "https://raw.githubusercontent.com/AllMostCoin/bus-os/main/public/bundle.js";
+const BUNDLE_VERSION_KEY = "busOS_bundleVersion";
+
+function useHotReload() {
+  const [updateReady, setUpdateReady] = useState(false);
+  const [newVersion, setNewVersion] = useState(null);
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch(GITHUB_BUNDLE_URL + "?t=" + Date.now());
+        if (!res.ok) return;
+        const text = await res.text();
+        const match = text.match(/\/\/ BUNDLE_VERSION: ([\d.]+)/);
+        if (!match) return;
+        const remote = match[1];
+        const local = localStorage.getItem(BUNDLE_VERSION_KEY) || "0";
+        if (remote !== local) { setUpdateReady(true); setNewVersion(remote); }
+      } catch {}
+    };
+    check();
+    const id = setInterval(check, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const applyUpdate = async () => {
+    try {
+      const res = await fetch(GITHUB_BUNDLE_URL + "?t=" + Date.now());
+      const text = await res.text();
+      const match = text.match(/\/\/ BUNDLE_VERSION: ([\d.]+)/);
+      if (match) {
+        localStorage.setItem(BUNDLE_VERSION_KEY, match[1]);
+        localStorage.setItem("busOS_hotBundle", text);
+        window.location.reload();
+      }
+    } catch {}
+  };
+
+  return { updateReady, newVersion, applyUpdate };
+}
+
+
+// ─── Conversation History & Projects ─────────────────────────────────────────
+const HISTORY_KEY = "busOS_history";
+const PROJECTS_KEY = "busOS_projects";
+
+
+
+// ─── History Panel ────────────────────────────────────────────────────────────
+function HistoryPanel({ onLoadConversation }) {
+  const [projects, setProjects] = useState(loadProjects);
+  const [history, setHistory] = useState(loadHistory);
+  const [activeProject, setActiveProject] = useState(null);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [view, setView] = useState("projects"); // projects | messages
+
+  const projectMsgs = activeProject
+    ? history.filter(m => m.project === activeProject)
+    : history;
+
+  const grouped = projectMsgs.reduce((acc, m) => {
+    const date = new Date(m.ts).toLocaleDateString();
+    if (!acc[date]) acc[date] = [];
+    acc[date].push(m);
+    return acc;
+  }, {});
+
+  const addProject = () => {
+    if (!newProjectName.trim()) return;
+    const p = [...projects, { id: Date.now(), name: newProjectName.trim(), color: ["#4ade80","#fb923c","#c084fc","#00d4ff","#f87171"][projects.length % 5] }];
+    saveProjects(p); setProjects(p); setNewProjectName("");
+  };
+
+  const deleteProject = (id) => {
+    const p = projects.filter(x => x.id !== id);
+    saveProjects(p); setProjects(p);
+  };
+
+  const clearHistory = () => {
+    if (window.confirm("Clear all history?")) { saveHistory([]); setHistory([]); }
+  };
+
+  return (
+    <Card style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <SectionHeader icon={Icon.history} label="History & Projects" color={C.purple} />
+
+      <div style={{ display: "flex", gap: 6 }}>
+        {["projects", "messages"].map(v => (
+          <button key={v} onClick={() => setView(v)} style={{ padding: "5px 14px", borderRadius: 8, border: `1px solid ${view === v ? C.accent : C.border}`, background: view === v ? `${C.accent}15` : C.surface, color: view === v ? C.accent : C.muted, cursor: "pointer", fontSize: 12, fontFamily: "monospace" }}>{v.toUpperCase()}</button>
+        ))}
+        <button onClick={clearHistory} style={{ marginLeft: "auto", padding: "5px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.muted, cursor: "pointer", fontSize: 11 }}>Clear All</button>
+      </div>
+
+      {view === "projects" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input value={newProjectName} onChange={e => setNewProjectName(e.target.value)} onKeyDown={e => e.key === "Enter" && addProject()} placeholder="New project name..." style={{ flex: 1, padding: "8px 12px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontSize: 12, outline: "none" }} />
+            <Btn small onClick={addProject} color={C.accent}>+</Btn>
+          </div>
+          <div onClick={() => { setActiveProject(null); setView("messages"); }} style={{ padding: "10px 12px", borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, cursor: "pointer", display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: C.text, fontSize: 13 }}>📋 All Conversations</span>
+            <span style={{ color: C.muted, fontSize: 11 }}>{history.length} msgs</span>
+          </div>
+          {projects.map(p => (
+            <div key={p.id} style={{ padding: "10px 12px", borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+              onClick={() => { setActiveProject(p.name); setView("messages"); }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 10, height: 10, borderRadius: "50%", background: p.color }} />
+                <span style={{ color: C.text, fontSize: 13 }}>{p.name}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ color: C.muted, fontSize: 11 }}>{history.filter(m => m.project === p.name).length} msgs</span>
+                <button onClick={e => { e.stopPropagation(); deleteProject(p.id); }} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 14 }}>×</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {view === "messages" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 420, overflowY: "auto" }}>
+          {activeProject && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <button onClick={() => setView("projects")} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 18 }}>←</button>
+              <span style={{ color: C.accent, fontSize: 13, fontWeight: 700 }}>{activeProject}</span>
+            </div>
+          )}
+          {Object.keys(grouped).length === 0 && <div style={{ color: C.muted, fontSize: 12, textAlign: "center", padding: 20 }}>No messages yet</div>}
+          {Object.entries(grouped).reverse().map(([date, msgs]) => (
+            <div key={date}>
+              <div style={{ color: C.muted, fontSize: 10, fontFamily: "monospace", padding: "6px 0 3px", textTransform: "uppercase" }}>{date}</div>
+              {msgs.map((m, i) => (
+                <div key={i} onClick={() => onLoadConversation && onLoadConversation(m)} style={{ padding: "7px 10px", borderRadius: 8, background: m.role === "user" ? `${C.accent}08` : C.surface, marginBottom: 3, cursor: "pointer", borderLeft: `2px solid ${m.role === "user" ? C.accent : C.border}` }}>
+                  <div style={{ color: m.role === "user" ? C.accent : C.muted, fontSize: 10, fontFamily: "monospace", marginBottom: 2 }}>{m.role.toUpperCase()} · {new Date(m.ts).toLocaleTimeString()}{m.project ? ` · ${m.project}` : ""}</div>
+                  <div style={{ color: C.text, fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.text}</div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // ─── Diff Viewer ──────────────────────────────────────────────────────────────
 function DiffViewer({ oldCode, newCode }) {
   const oldLines = oldCode.split("\n");
@@ -426,13 +581,15 @@ function DevPanel({ appSource, versions, onApplyUpdate, onRollback }) {
 }
 
 // ─── AI Panel (with self-modification) ───────────────────────────────────────
-function AIPanel({ busState, appSource, versions, onApply, onApplyUpdate, aiConfig = {} }) {
+function AIPanel({ busState, appSource, versions, onApply, onApplyUpdate, aiConfig = {}, projects = [] }) {
   const [messages, setMessages] = useState([{
     role: "assistant",
     text: "Bus AI online. I control all onboard systems AND can upgrade this app itself.\n\nTry: \"add a water tank panel\", \"change the theme to green\", \"add a fuel gauge\", or just ask me to control the bus."
   }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [currentProject, setCurrentProject] = useState(() => { try { return localStorage.getItem("busOS_currentProject") || "General"; } catch { return "General"; } });
+  const allProjects = ["General", ...loadProjects().map(p => p.name)];
   const [pending, setPending] = useState(null); // { source, description, changes, diff }
   const bottomRef = useRef(null);
 
@@ -569,6 +726,13 @@ If the user asks for both (e.g. "turn off lights AND add a water tank panel"), d
     <Card style={{ display: "flex", flexDirection: "column", gap: 0 }}>
       <SectionHeader icon={Icon.ai} label="AI Assistant" color={C.accent} />
 
+      {/* Project Selector */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+        <span style={{ color: C.muted, fontSize: 11 }}>Project:</span>
+        <select value={currentProject} onChange={e => { setCurrentProject(e.target.value); localStorage.setItem("busOS_currentProject", e.target.value); }} style={{ flex: 1, padding: "4px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.accent, fontSize: 12, outline: "none" }}>
+          {allProjects.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+      </div>
       {/* Chips */}
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10 }}>
         {["Night mode", "Add water tank panel", "Change accent to green", "Add fuel gauge", "Lock all doors", "Movie time"].map(s => (
@@ -765,6 +929,7 @@ export default function BusAIControl() {
     { id: "power", label: "Power", icon: Icon.power },
     { id: "ent", label: "Media", icon: Icon.music },
     { id: "dev", label: "Dev", icon: Icon.code },
+    { id: "history", label: "History", icon: Icon.history },
     { id: "settings", label: "Setup", icon: Icon.settings },
   ];
 
@@ -783,12 +948,13 @@ export default function BusAIControl() {
       <StatusBar power={power} version={currentVersion} />
       <Alerts power={power} hvac={hvac} />
 
-      {activeTab === "ai" && <AIPanel busState={busState} appSource={appSource} versions={versions} onApply={applyChanges} onApplyUpdate={applyUpdate} aiConfig={aiConfig} />}
+      {activeTab === "ai" && <AIPanel busState={busState} appSource={appSource} versions={versions} onApply={applyChanges} onApplyUpdate={applyUpdate} aiConfig={aiConfig} projects={loadProjects()} />}
       {activeTab === "lights" && <LightingPanel state={lighting} setState={setLighting} />}
       {activeTab === "climate" && <HVACPanel state={hvac} setState={setHvac} />}
       {activeTab === "doors" && <DoorsPanel state={doors} setState={setDoors} />}
       {activeTab === "power" && <PowerPanel state={power} />}
       {activeTab === "ent" && <EntPanel state={ent} setState={setEnt} />}
+      {activeTab === "history" && <HistoryPanel onLoadConversation={(m) => { setActiveTab("ai"); }} />}
       {activeTab === "settings" && <SettingsPanel config={aiConfig} onSave={saveAiConfig} />}
       {activeTab === "dev" && <DevPanel appSource={appSource} versions={versions} onApplyUpdate={applyUpdate} onRollback={rollback} />}
 
